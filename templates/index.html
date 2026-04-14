@@ -1,0 +1,675 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kalshi Bot Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg:       #0a0e17;
+    --surface:  #111827;
+    --border:   #1f2937;
+    --text:     #e5e7eb;
+    --muted:    #6b7280;
+    --green:    #10b981;
+    --red:      #ef4444;
+    --yellow:   #f59e0b;
+    --blue:     #3b82f6;
+    --purple:   #8b5cf6;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Courier New', monospace;
+    font-size: 13px;
+    min-height: 100vh;
+  }
+
+  /* ── Header ── */
+  .header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 12px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .header-title {
+    font-size: 16px;
+    font-weight: bold;
+    color: var(--green);
+    letter-spacing: 2px;
+  }
+  .header-stats {
+    display: flex;
+    gap: 24px;
+    flex-wrap: wrap;
+  }
+  .stat-box {
+    text-align: center;
+  }
+  .stat-box .label {
+    font-size: 10px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+  .stat-box .value {
+    font-size: 20px;
+    font-weight: bold;
+    margin-top: 2px;
+  }
+  .connection-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--green);
+    display: inline-block;
+    margin-right: 6px;
+    animation: pulse 2s infinite;
+  }
+  .connection-dot.offline { background: var(--red); animation: none; }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+  .status-bar {
+    font-size: 11px;
+    color: var(--muted);
+    display: flex;
+    align-items: center;
+  }
+
+  /* ── Layout ── */
+  .main {
+    padding: 16px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: auto auto auto;
+    gap: 16px;
+  }
+  @media (max-width: 768px) {
+    .main { grid-template-columns: 1fr; }
+    .full-width { grid-column: 1 !important; }
+  }
+  .full-width { grid-column: 1 / -1; }
+
+  /* ── Card ── */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+  }
+  .card-title {
+    font-size: 11px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 14px;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 8px;
+  }
+
+  /* ── Equity chart ── */
+  .chart-wrap {
+    position: relative;
+    height: 220px;
+  }
+
+  /* ── Stats grid ── */
+  .stats-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+  .stat-item .s-label {
+    font-size: 10px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+  .stat-item .s-value {
+    font-size: 18px;
+    font-weight: bold;
+    margin-top: 2px;
+  }
+
+  /* ── Position panel ── */
+  #position-card { display: none; }
+  .position-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 12px;
+  }
+  .pos-item .p-label {
+    font-size: 10px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+  .pos-item .p-value {
+    font-size: 16px;
+    font-weight: bold;
+    margin-top: 2px;
+  }
+  .side-badge {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 4px;
+    font-size: 13px;
+    font-weight: bold;
+  }
+  .side-badge.yes { background: rgba(16,185,129,0.2); color: var(--green); }
+  .side-badge.no  { background: rgba(239,68,68,0.2);  color: var(--red); }
+
+  /* ── Trade feed ── */
+  .trade-feed {
+    max-height: 320px;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+  }
+  .trade-row {
+    display: grid;
+    grid-template-columns: 90px 36px 54px 60px 60px 60px 1fr;
+    gap: 6px;
+    align-items: center;
+    padding: 6px 8px;
+    border-radius: 4px;
+    margin-bottom: 3px;
+    font-size: 12px;
+    border-left: 3px solid transparent;
+    transition: background 0.3s;
+  }
+  .trade-row.win  { border-left-color: var(--green); background: rgba(16,185,129,0.05); }
+  .trade-row.loss { border-left-color: var(--red);   background: rgba(239,68,68,0.05); }
+  .trade-row .col-muted { color: var(--muted); font-size: 11px; }
+  .trade-row .col-pnl   { font-weight: bold; text-align: right; }
+  .trade-header {
+    display: grid;
+    grid-template-columns: 90px 36px 54px 60px 60px 60px 1fr;
+    gap: 6px;
+    padding: 4px 8px;
+    font-size: 10px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 4px;
+  }
+
+  /* ── Exit reasons table ── */
+  .reason-table { width: 100%; border-collapse: collapse; }
+  .reason-table th {
+    text-align: left;
+    font-size: 10px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    padding: 4px 8px;
+    border-bottom: 1px solid var(--border);
+  }
+  .reason-table td {
+    padding: 7px 8px;
+    border-bottom: 1px solid rgba(31,41,55,0.5);
+  }
+  .reason-table tr:last-child td { border-bottom: none; }
+
+  /* ── Colors ── */
+  .green  { color: var(--green); }
+  .red    { color: var(--red); }
+  .yellow { color: var(--yellow); }
+  .blue   { color: var(--blue); }
+  .muted  { color: var(--muted); }
+
+  .new-trade {
+    animation: flashIn 0.6s ease-out;
+  }
+  @keyframes flashIn {
+    0%   { background: rgba(16,185,129,0.25); }
+    100% { background: transparent; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ── Header ── -->
+<div class="header">
+  <div>
+    <div class="header-title">KALSHI BOT</div>
+    <div class="status-bar">
+      <span class="connection-dot" id="conn-dot"></span>
+      <span id="conn-status">Connecting...</span>
+    </div>
+  </div>
+  <div class="header-stats">
+    <div class="stat-box">
+      <div class="label">Portfolio</div>
+      <div class="value green" id="h-portfolio">$--</div>
+    </div>
+    <div class="stat-box">
+      <div class="label">All-Time P&amp;L</div>
+      <div class="value" id="h-pnl">$--</div>
+    </div>
+    <div class="stat-box">
+      <div class="label">Today P&amp;L</div>
+      <div class="value" id="h-today">$--</div>
+    </div>
+    <div class="stat-box">
+      <div class="label">Win Rate</div>
+      <div class="value" id="h-winrate">--%</div>
+    </div>
+    <div class="stat-box">
+      <div class="label">Trades</div>
+      <div class="value blue" id="h-trades">--</div>
+    </div>
+  </div>
+  <div class="muted" style="font-size:11px;" id="last-update">Last update: --</div>
+</div>
+
+<!-- ── Main grid ── -->
+<div class="main">
+
+  <!-- Equity curve (full width) -->
+  <div class="card full-width">
+    <div class="card-title">Equity Curve</div>
+    <div class="chart-wrap">
+      <canvas id="equity-chart"></canvas>
+    </div>
+  </div>
+
+  <!-- Current position (full width, hidden when flat) -->
+  <div class="card full-width" id="position-card">
+    <div class="card-title">Open Position</div>
+    <div class="position-grid">
+      <div class="pos-item">
+        <div class="p-label">Ticker</div>
+        <div class="p-value" id="pos-ticker">--</div>
+      </div>
+      <div class="pos-item">
+        <div class="p-label">Side</div>
+        <div class="p-value" id="pos-side">--</div>
+      </div>
+      <div class="pos-item">
+        <div class="p-label">Contracts</div>
+        <div class="p-value blue" id="pos-contracts">--</div>
+      </div>
+      <div class="pos-item">
+        <div class="p-label">Entry Price</div>
+        <div class="p-value" id="pos-entry">--</div>
+      </div>
+      <div class="pos-item">
+        <div class="p-label">Current Price</div>
+        <div class="p-value" id="pos-current">--</div>
+      </div>
+      <div class="pos-item">
+        <div class="p-label">Unrealized P&amp;L</div>
+        <div class="p-value" id="pos-upnl">--</div>
+      </div>
+      <div class="pos-item">
+        <div class="p-label">Time Held</div>
+        <div class="p-value yellow" id="pos-time">--</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Stats panel -->
+  <div class="card">
+    <div class="card-title">Performance Stats</div>
+    <div class="stats-grid">
+      <div class="stat-item">
+        <div class="s-label">Avg Win</div>
+        <div class="s-value green" id="s-avgwin">--</div>
+      </div>
+      <div class="stat-item">
+        <div class="s-label">Avg Loss</div>
+        <div class="s-value red" id="s-avgloss">--</div>
+      </div>
+      <div class="stat-item">
+        <div class="s-label">Best Trade</div>
+        <div class="s-value green" id="s-best">--</div>
+      </div>
+      <div class="stat-item">
+        <div class="s-label">Worst Trade</div>
+        <div class="s-value red" id="s-worst">--</div>
+      </div>
+      <div class="stat-item">
+        <div class="s-label">Gross Wins</div>
+        <div class="s-value green" id="s-grosswins">--</div>
+      </div>
+      <div class="stat-item">
+        <div class="s-label">Gross Losses</div>
+        <div class="s-value red" id="s-grosslosses">--</div>
+      </div>
+      <div class="stat-item">
+        <div class="s-label">Profit Factor</div>
+        <div class="s-value" id="s-pf">--</div>
+      </div>
+      <div class="stat-item">
+        <div class="s-label">Today Trades</div>
+        <div class="s-value blue" id="s-todaytrades">--</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Exit reason breakdown -->
+  <div class="card">
+    <div class="card-title">Exit Reason Breakdown</div>
+    <table class="reason-table">
+      <thead>
+        <tr>
+          <th>Reason</th>
+          <th>Count</th>
+          <th>Total P&amp;L</th>
+          <th>Avg P&amp;L</th>
+        </tr>
+      </thead>
+      <tbody id="reason-body">
+        <tr><td colspan="4" class="muted" style="padding:12px 8px;">Loading...</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Live trade feed (full width) -->
+  <div class="card full-width">
+    <div class="card-title">Live Trade Feed</div>
+    <div class="trade-header">
+      <span>Time</span>
+      <span>Side</span>
+      <span>Ticker</span>
+      <span>Entry</span>
+      <span>Exit</span>
+      <span>Contracts</span>
+      <span style="text-align:right">P&amp;L</span>
+    </div>
+    <div class="trade-feed" id="trade-feed">
+      <div class="muted" style="padding:12px 8px;">Loading trades...</div>
+    </div>
+  </div>
+
+</div><!-- /main -->
+
+<script>
+// ── Utility ──────────────────────────────────────────────────────────────────
+
+function fmt(val, prefix='$', decimals=2) {
+  if (val === null || val === undefined) return '--';
+  const n = parseFloat(val);
+  const sign = n >= 0 ? '+' : '';
+  return `${prefix}${sign}${n.toFixed(decimals)}`;
+}
+
+function fmtPlain(val, decimals=2) {
+  if (val === null || val === undefined) return '--';
+  return `$${parseFloat(val).toFixed(decimals)}`;
+}
+
+function colorClass(val) {
+  if (val === null || val === undefined) return '';
+  return parseFloat(val) >= 0 ? 'green' : 'red';
+}
+
+function setEl(id, text, cls) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.textContent = text;
+  if (cls !== undefined) el.className = cls;
+}
+
+// ── Equity chart ─────────────────────────────────────────────────────────────
+
+let equityChart = null;
+
+function initChart(data) {
+  const ctx = document.getElementById('equity-chart').getContext('2d');
+  const labels = data.map(d => d.time);
+  const values = data.map(d => d.value);
+
+  const gradient = ctx.createLinearGradient(0, 0, 0, 220);
+  gradient.addColorStop(0, 'rgba(16,185,129,0.3)');
+  gradient.addColorStop(1, 'rgba(16,185,129,0.0)');
+
+  equityChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        data: values,
+        borderColor: '#10b981',
+        backgroundColor: gradient,
+        borderWidth: 2,
+        pointRadius: 0,
+        fill: true,
+        tension: 0.3,
+      }]
+    },
+    options: {
+      animation: false,
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: {
+          ticks: {
+            color: '#6b7280',
+            maxTicksLimit: 8,
+            font: { size: 10, family: 'Courier New' }
+          },
+          grid: { color: '#1f2937' }
+        },
+        y: {
+          ticks: {
+            color: '#6b7280',
+            font: { size: 10, family: 'Courier New' },
+            callback: v => '$' + v.toFixed(2)
+          },
+          grid: { color: '#1f2937' }
+        }
+      }
+    }
+  });
+}
+
+function updateChart(data) {
+  if (!equityChart) { initChart(data); return; }
+  equityChart.data.labels  = data.map(d => d.time);
+  equityChart.data.datasets[0].data = data.map(d => d.value);
+  equityChart.update('none');
+}
+
+// ── Stats ─────────────────────────────────────────────────────────────────────
+
+function updateStats(s) {
+  if (!s || s.error) return;
+
+  // Header
+  setEl('h-portfolio', fmtPlain(s.portfolio));
+  const pnlEl = document.getElementById('h-pnl');
+  pnlEl.textContent = fmt(s.total_pnl);
+  pnlEl.className = colorClass(s.total_pnl);
+
+  const todayEl = document.getElementById('h-today');
+  todayEl.textContent = fmt(s.today_pnl);
+  todayEl.className = colorClass(s.today_pnl);
+
+  setEl('h-winrate', s.win_rate + '%');
+  setEl('h-trades', s.trade_count);
+
+  // Stats panel
+  setEl('s-avgwin',      fmt(s.avg_win));
+  setEl('s-avgloss',     fmt(s.avg_loss));
+  setEl('s-best',        fmt(s.best_trade));
+  setEl('s-worst',       fmt(s.worst_trade));
+  setEl('s-grosswins',   fmtPlain(s.gross_wins));
+  setEl('s-grosslosses', fmtPlain(s.gross_losses));
+  setEl('s-todaytrades', s.today_trades);
+
+  const pf = parseFloat(s.profit_factor);
+  const pfEl = document.getElementById('s-pf');
+  pfEl.textContent = pf.toFixed(2);
+  pfEl.className = 's-value ' + (pf >= 1 ? 'green' : 'red');
+
+  // Exit reasons
+  const tbody = document.getElementById('reason-body');
+  if (s.exit_reasons && s.exit_reasons.length) {
+    tbody.innerHTML = s.exit_reasons.map(r => {
+      const cls = (r.total || 0) >= 0 ? 'green' : 'red';
+      return `<tr>
+        <td>${r.exit_reason || r.reason || '--'}</td>
+        <td class="blue">${r.cnt || r.count || 0}</td>
+        <td class="${cls}">${fmt(r.total || r.total_pnl)}</td>
+        <td class="${cls}">${fmt(r.avg || r.avg_pnl)}</td>
+      </tr>`;
+    }).join('');
+  }
+}
+
+// ── Trade feed ────────────────────────────────────────────────────────────────
+
+let knownTradeIds = new Set();
+
+function updateTrades(trades) {
+  if (!trades || !trades.length) return;
+
+  const feed = document.getElementById('trade-feed');
+  const newTrades = trades.filter(t => !knownTradeIds.has(t.id));
+
+  if (knownTradeIds.size === 0) {
+    // First load — render all
+    feed.innerHTML = trades.map(tradeRow).join('');
+    trades.forEach(t => knownTradeIds.add(t.id));
+    return;
+  }
+
+  // Prepend new trades
+  newTrades.forEach(t => {
+    knownTradeIds.add(t.id);
+    const div = document.createElement('div');
+    div.innerHTML = tradeRow(t);
+    const row = div.firstChild;
+    row.classList.add('new-trade');
+    feed.insertBefore(row, feed.firstChild);
+  });
+
+  // Trim to 20
+  while (feed.children.length > 20) {
+    feed.removeChild(feed.lastChild);
+  }
+}
+
+function tradeRow(t) {
+  const win = parseFloat(t.pnl) >= 0;
+  const cls = win ? 'win' : 'loss';
+  const pnlCls = win ? 'green' : 'red';
+  const time = (t.exit_time || '').substring(11, 16);
+  const ticker = (t.ticker || '').slice(-8);
+  const sideCls = t.side === 'yes' ? 'green' : 'red';
+  return `<div class="trade-row ${cls}">
+    <span class="col-muted">${time}</span>
+    <span class="${sideCls}">${(t.side||'').toUpperCase()}</span>
+    <span class="col-muted">${ticker}</span>
+    <span>$${parseFloat(t.entry_price||0).toFixed(2)}</span>
+    <span>$${parseFloat(t.exit_price||0).toFixed(2)}</span>
+    <span class="blue">${t.contracts}</span>
+    <span class="col-pnl ${pnlCls}">${fmt(t.pnl)}</span>
+  </div>`;
+}
+
+// ── Position ──────────────────────────────────────────────────────────────────
+
+let positionEntryTs = null;
+let positionTimer   = null;
+
+function updatePosition(pos) {
+  const card = document.getElementById('position-card');
+  if (!pos || !pos.ticker) {
+    card.style.display = 'none';
+    if (positionTimer) { clearInterval(positionTimer); positionTimer = null; }
+    positionEntryTs = null;
+    return;
+  }
+
+  card.style.display = 'block';
+  setEl('pos-ticker', pos.ticker);
+
+  const sideEl = document.getElementById('pos-side');
+  sideEl.innerHTML = `<span class="side-badge ${pos.side}">${(pos.side||'').toUpperCase()}</span>`;
+
+  setEl('pos-contracts', pos.contracts);
+  setEl('pos-entry', fmtPlain(pos.entry_price));
+
+  const curEl = document.getElementById('pos-current');
+  if (pos.current_price) {
+    curEl.textContent = fmtPlain(pos.current_price);
+  } else {
+    curEl.textContent = '--';
+  }
+
+  const upnlEl = document.getElementById('pos-upnl');
+  if (pos.unrealized_pnl !== undefined && pos.unrealized_pnl !== null) {
+    upnlEl.textContent = fmt(pos.unrealized_pnl);
+    upnlEl.className = 'p-value ' + colorClass(pos.unrealized_pnl);
+  } else {
+    upnlEl.textContent = '--';
+  }
+
+  // Start timer if new position
+  if (pos.entry_time && pos.entry_time !== positionEntryTs) {
+    positionEntryTs = pos.entry_time;
+    if (positionTimer) clearInterval(positionTimer);
+    positionTimer = setInterval(() => {
+      const secs = Math.floor((Date.now() - new Date(pos.entry_time).getTime()) / 1000);
+      const m = Math.floor(secs / 60);
+      const s = secs % 60;
+      setEl('pos-time', `${m}m ${s}s`);
+    }, 1000);
+  }
+}
+
+// ── SSE connection ────────────────────────────────────────────────────────────
+
+function connect() {
+  const dot    = document.getElementById('conn-dot');
+  const status = document.getElementById('conn-status');
+
+  const source = new EventSource('/stream');
+
+  source.onopen = () => {
+    dot.classList.remove('offline');
+    status.textContent = 'Live';
+  };
+
+  source.onmessage = (event) => {
+    try {
+      const d = JSON.parse(event.data);
+      if (d.error) { console.error('SSE error:', d.error); return; }
+
+      updateStats(d.stats);
+      updateTrades(d.trades);
+      updateChart(d.equity);
+      updatePosition(d.position);
+
+      document.getElementById('last-update').textContent =
+        'Last update: ' + new Date().toLocaleTimeString();
+    } catch(e) {
+      console.error('Parse error:', e);
+    }
+  };
+
+  source.onerror = () => {
+    dot.classList.add('offline');
+    status.textContent = 'Reconnecting...';
+  };
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+
+connect();
+</script>
+</body>
+</html>

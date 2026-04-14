@@ -1,0 +1,14 @@
+[Unit]
+Description=Kalshi Bot Dashboard
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root/kalshi_dashboard
+ExecStart=/root/kalshi_dashboard/venv/bin/python app.py
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
