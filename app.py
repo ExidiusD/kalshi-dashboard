@@ -41,14 +41,15 @@ def get_live_balance() -> float:
         api_key_id   = os.getenv("KALSHI_API_KEY_ID")
         key_path     = os.getenv("KALSHI_PRIVATE_KEY_PATH",
                                   os.path.expanduser("~/kalshi_momentum/kalshi_private_key.pem"))
-        base_url     = os.getenv("KALSHI_BASE_URL", "https://trading-api.kalshi.com/trade-api/v2")
+        base_url     = os.getenv("KALSHI_BASE_URL", "https://api.elections.kalshi.com/trade-api/v2")
 
         with open(key_path, "rb") as f:
             private_key = serialization.load_pem_private_key(f.read(), password=None)
 
         path = "/portfolio/balance"
         ts   = str(int(now * 1000))
-        msg  = f"{ts}GET/trade-api/v2{path}".encode()
+        api_prefix = "/trade-api/v2"
+        msg  = f"{ts}GET{api_prefix}{path}".encode()
         sig  = private_key.sign(
             msg,
             asym_padding.PSS(mgf=asym_padding.MGF1(hashes.SHA256()),
