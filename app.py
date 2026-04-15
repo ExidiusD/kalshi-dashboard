@@ -6,6 +6,7 @@ Reads from trades_momentum.db (read-only) and serves live stats to the browser.
 import sqlite3
 import json
 import os
+import sys
 import time
 from datetime import datetime, timezone, date
 from flask import Flask, render_template, Response, jsonify
@@ -15,9 +16,31 @@ app = Flask(__name__)
 # ── Config ─────────────────────────────────────────────────────────────────────
 DB_PATH              = os.path.expanduser("~/kalshi_momentum/trades_momentum.db")
 POSITION_FILE        = os.path.expanduser("~/kalshi_momentum/current_position.json")
-STARTING_CAPITAL     = 50.00   # adjust if you added funds
+STARTING_CAPITAL     = 50.00   # fallback only — real balance fetched from Kalshi API
 PAPER_MODE           = 0       # 0 = live trades, 1 = paper trades
 SSE_INTERVAL         = 12      # seconds between SSE pushes
+
+# ── Kalshi API balance ─────────────────────────────────────────────────────────
+# Reuse the bot's kalshi_client so we don't duplicate auth logic
+sys.path.insert(0, os.path.expanduser("~/kalshi_momentum"))
+_kalshi_balance_cache = {"value": None, "ts": 0}
+
+def get_live_balance() -> float:
+    """Fetch real Kalshi account balance, cached for 30 seconds."""
+    now = time.time()
+    if now - _kalshi_balance_cache["ts"] < 30 and _kalshi_balance_cache["value"] is not None:
+        return _kalshi_balance_cache["value"]
+    try:
+        import kalshi_client
+        resp = kalshi_client.get_balance()
+        cents = resp.get("balance", 0)
+        bal = cents / 100.0
+        _kalshi_balance_cache["value"] = bal
+        _kalshi_balance_cache["ts"] = now
+        return bal
+    except Exception:
+        # Fall back to DB calculation if API fails
+        return None
 
 
 # ── Database helpers ───────────────────────────────────────────────────────────
@@ -62,7 +85,8 @@ def get_stats() -> dict:
 
         win_rate      = round(win_count / trade_count * 100, 1) if trade_count else 0.0
         profit_factor = round(gross_wins / gross_losses, 2) if gross_losses else 0.0
-        portfolio     = round(STARTING_CAPITAL + total_pnl, 2)
+        live_bal  = get_live_balance()
+        portfolio = live_bal if live_bal is not None else round(STARTING_CAPITAL + total_pnl, 2)
 
         # Today's P&L
         today_row = cur.execute("""
