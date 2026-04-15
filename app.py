@@ -21,8 +21,15 @@ PAPER_MODE           = 0       # 0 = live trades, 1 = paper trades
 SSE_INTERVAL         = 12      # seconds between SSE pushes
 
 # ── Kalshi API balance ─────────────────────────────────────────────────────────
-# Reuse the bot's kalshi_client so we don't duplicate auth logic
-sys.path.insert(0, os.path.expanduser("~/kalshi_momentum"))
+import base64
+import requests
+from cryptography.hazmat.primitives import serialization, hashes
+from cryptography.hazmat.primitives.asymmetric import padding as asym_padding
+from dotenv import load_dotenv
+
+# Load .env from the bot directory where credentials live
+load_dotenv(os.path.expanduser("~/kalshi_momentum/.env"))
+
 _kalshi_balance_cache = {"value": None, "ts": 0}
 
 def get_live_balance() -> float:
@@ -31,15 +38,35 @@ def get_live_balance() -> float:
     if now - _kalshi_balance_cache["ts"] < 30 and _kalshi_balance_cache["value"] is not None:
         return _kalshi_balance_cache["value"]
     try:
-        import kalshi_client
-        resp = kalshi_client.get_balance()
-        cents = resp.get("balance", 0)
-        bal = cents / 100.0
+        api_key_id   = os.getenv("KALSHI_API_KEY_ID")
+        key_path     = os.getenv("KALSHI_PRIVATE_KEY_PATH",
+                                  os.path.expanduser("~/kalshi_momentum/kalshi_private_key.pem"))
+        base_url     = os.getenv("KALSHI_BASE_URL", "https://trading-api.kalshi.com/trade-api/v2")
+
+        with open(key_path, "rb") as f:
+            private_key = serialization.load_pem_private_key(f.read(), password=None)
+
+        path = "/portfolio/balance"
+        ts   = str(int(now * 1000))
+        msg  = f"{ts}GET/trade-api/v2{path}".encode()
+        sig  = private_key.sign(
+            msg,
+            asym_padding.PSS(mgf=asym_padding.MGF1(hashes.SHA256()),
+                             salt_length=asym_padding.PSS.MAX_LENGTH),
+            hashes.SHA256()
+        )
+        headers = {
+            "KALSHI-ACCESS-KEY":       api_key_id,
+            "KALSHI-ACCESS-SIGNATURE": base64.b64encode(sig).decode(),
+            "KALSHI-ACCESS-TIMESTAMP": ts,
+        }
+        resp = requests.get(f"{base_url}{path}", headers=headers, timeout=5)
+        cents = resp.json().get("balance", 0)
+        bal   = cents / 100.0
         _kalshi_balance_cache["value"] = bal
-        _kalshi_balance_cache["ts"] = now
+        _kalshi_balance_cache["ts"]    = now
         return bal
     except Exception:
-        # Fall back to DB calculation if API fails
         return None
 
 
