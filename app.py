@@ -39,8 +39,7 @@ def get_live_balance() -> float:
         return _kalshi_balance_cache["value"]
     try:
         api_key_id   = os.getenv("KALSHI_API_KEY_ID")
-        key_path     = os.getenv("KALSHI_PRIVATE_KEY_PATH",
-                                  os.path.expanduser("~/kalshi_momentum/kalshi_private_key.pem"))
+        key_path     = os.path.expanduser("~/kalshi_momentum/kalshi_private_key.pem")
         base_url     = os.getenv("KALSHI_BASE_URL", "https://api.elections.kalshi.com/trade-api/v2")
 
         with open(key_path, "rb") as f:
